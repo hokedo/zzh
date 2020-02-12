@@ -1,0 +1,111 @@
+set_zsh_env_vars() {
+	export ZSH_FOLDER="$HOME/.zsh"
+	export ZSH_EXECUTABLE="$ZSH_FOLDER/bin/zsh"
+	export OH_MY_ZSH_HOME="$ZSH_FOLDER/.oh-my-zsh"
+	export ZSH_CUSTOM="$OH_MY_ZSH_HOME/custom"
+}
+
+
+install_zsh () {
+	set -x
+	set -e
+
+	set_zsh_env_vars
+
+	if  ! hash zsh &> /dev/null && [ ! -e  "$ZSH_EXECUTABLE" ]; then
+		###########################################################################################
+		echo "zsh not installed"
+
+		if ! hash gcc &> /dev/null; then
+			echo "No C compiler found to install zsh (sudo apt install build-essential). Exiting.."
+			exit 1
+		fi
+
+		if ! ldconfig -p | grep libncurses &> /dev/null; then
+			echo "No terminal management library found (sudo apt install libncurses5-dev). Exiting.."
+			exit 1
+		fi	
+
+		###########################################################################################
+
+        ###########################################################################################
+        echo "Installing zsh.."
+        mkdir $ZSH_FOLDER
+        cd $ZSH_FOLDER
+        wget -O zsh.tar.xz https://sourceforge.net/projects/zsh/files/latest/download
+        unxz zsh.tar.xz
+        tar -xvf zsh.tar --strip-components 1
+
+        ./configure --prefix=$HOME/.zsh --with-tcsetpgrp
+        make && make install
+
+        export PATH="$PATH:$ZSH_FOLDER/bin"
+
+        echo "Finished installing zsh"
+        ###########################################################################################
+
+        ###########################################################################################
+        echo "Installing Oh My Zsh..."
+
+        wget https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+        sh ./install.sh --skip-chsh --unattended
+
+        mv ~/.oh-my-zsh "$ZSH_FOLDER"
+
+        ORIGINAL_STR='export ZSH=.*'
+        REPLACE_STR='export ZSH='"$OH_MY_ZSH_HOME"
+        sed "s~$ORIGINAL_STR~$REPLACE_STR~g" ~/.zshrc > tmp
+        mv tmp ~/.zshrc
+
+        echo 'export ZSH_CUSTOM='"$OH_MY_ZSH_HOME"'/custom' >> ~/.zshrc
+
+        echo "Finished installing Oh My Zsh"
+        ###########################################################################################
+
+        ###########################################################################################
+        echo "Installing powerlevel10k..."
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git $ZSH_CUSTOM/themes/powerlevel10k
+
+        echo 'ZSH_THEME="powerlevel10k/powerlevel10k"' >> ~/.zshrc
+
+        ORIGINAL_STR='ZSH_THEME="robbyrussell"'
+        REPLACE_STR='ZSH_THEME="powerlevel10k/powerlevel10k"'
+        sed "s~$ORIGINAL_STR~$REPLACE_STR~" ~/.zshrc > tmp
+        mv tmp ~/.zshrc
+
+        echo 'source ~/.p10k.zsh' >> ~/.zshrc
+
+        echo "Finished installing powerlevel10k"
+        ###########################################################################################
+
+    fi
+
+    if [ ! -f ~/.p10k.zsh ]; then
+    	echo "No ~/.p10k.zsh found"
+    	echo "Download latest ~/.p10k.zsh..."
+    	cd
+    	wget https://gist.githubusercontent.com/hokedo/a7eb2a8c3431ca43b98b900bbb09e35d/raw/.p10k.zsh
+    	echo "Finished downloading ~/.p10k.zsh"
+    fi
+    set +x
+}
+
+
+run_zsh () {
+	set -x
+	set -e
+	set_zsh_env_vars
+
+	if hash zsh &> /dev/null; then
+		/bin/bash -c zsh
+	elif [ -e  "$ZSH_EXECUTABLE" ]; then
+		/bin/bash -c "$ZSH_EXECUTABLE"
+	else
+		echo "No zsh installed"
+		exit 1
+	fi
+}
+
+zzh () {
+	ssh -t $@ "$(typeset -f set_zsh_env_vars); $(typeset -f install_zsh); $(typeset -f run_zsh); install_zsh; run_zsh"
+}
